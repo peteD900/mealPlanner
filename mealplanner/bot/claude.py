@@ -1,11 +1,12 @@
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import anthropic
 import aiosqlite
 
-from bot.tools import TOOLS, execute_tool
-from db.database import (
+from mealplanner.bot.tools import TOOLS, execute_tool
+from mealplanner.db.database import (
     append_session_message,
     clear_session_messages,
     get_last_message_time,
@@ -16,47 +17,61 @@ from db.database import (
 
 SESSION_TIMEOUT_HOURS = 2
 
+INGREDIENTS_PATH = Path(os.getenv("INGREDIENTS_PATH", "data/ingredients.txt"))
+
 _SYSTEM_BASE = """\
-You are a personal meal planning assistant. You help the user decide what to eat, \
-discover new recipes, manage their recipe collection, and plan their weekly meals.
+You are a meal planning assistant. Be minimal and direct — no chit-chat, no sign-offs, no filler. \
+Suggest first, explain only if asked. No emojis.
 
-You have access to the following tools:
-- list_recipes: retrieve all saved recipes
-- add_recipe: save a new recipe
-- edit_recipe: update an existing recipe
-- delete_recipe: remove a recipe
+Format all responses using Telegram HTML only: <b>bold</b>, <i>italic</i>, <code>inline code</code>. \
+Never use markdown syntax (no asterisks, no underscores, no backtick fences).
 
-When the user sends a URL, a recipe inspired by the page content will be included in their \
-message — generate a well-structured recipe from it and call add_recipe to save it.
+## Recipes
 
-When the user pastes a shopping list (multiple lines that look like grocery items), \
-call list_recipes to see their current meal plan context, then return a clean merged \
-shopping list based on their meals for the week.
+When the user asks for a recipe or wants to save one, present it clearly then ask if they want to save it. \
+When they confirm (e.g. "save that", "yes"), call save_recipe immediately. \
+Before calling update_recipe or delete_recipe, confirm intent if it is not obvious.
 
-For general conversation — discussing meal ideas, what to cook, preferences, \
-nutrition questions — just chat naturally. Use list_recipes when it helps you \
-give more relevant suggestions.
+Ingredients must be stored as plain names — no quantities, no prep notes. \
+Use the locally available ingredients list below to guide what you suggest.
 
-## Suggesting a recipe for review
+## Shopping lists
 
-When the user asks you to suggest a specific recipe (via /suggest or by saying something \
-like "write that up" or "let's go with that one"), do NOT call add_recipe. Instead, \
-present the recipe for review by ending your response with a marker block in this exact format:
+When the user pastes a shopping list, call get_meal_plan to retrieve the week's meals, \
+then call list_recipes to get the full recipes for those meals. \
+Work out what ingredients are needed for the meal plan that are not already on the user's list. \
+Return only the missing ingredients — nothing that was already on the list. \
+No section headers, no quantities, no prep notes, no formatting. \
+One ingredient per line, plain text only. Nothing else in the response — just the new items, ready to copy.
 
----RECIPE---
-{"title": "Recipe Title", "ingredients": "ingredient 1\\ningredient 2\\ningredient 3", "instructions": "Step 1\\nStep 2\\nStep 3"}
----END---
+## Meal planning
 
-Write ingredients as a newline-separated list and instructions as numbered steps separated \
-by newlines. The user will be shown a Save button — only call add_recipe if they explicitly \
-ask you to save without going through /suggest.\
+When the user wants to plan their week, use get_meal_plan to check what's already saved, \
+suggest meals, then call save_meal_plan once confirmed.
+
+## URLs
+
+When the user sends a URL, page content will be included in their message. \
+Generate a recipe inspired by it, present it, and offer to save it.\
 """
 
 
+def _load_ingredients() -> str:
+    try:
+        lines = INGREDIENTS_PATH.read_text().splitlines()
+        cleaned = [line.lstrip("-•* \t") for line in lines if line.strip()]
+        if cleaned:
+            return "\n\n## Locally available ingredients (Portugal)\n" + "\n".join(cleaned)
+    except FileNotFoundError:
+        pass
+    return ""
+
+
 def _build_system_prompt(preferences: str) -> str:
-    if not preferences:
-        return _SYSTEM_BASE
-    return f"{_SYSTEM_BASE}\n\n## What you know about this user:\n{preferences}"
+    prompt = _SYSTEM_BASE + _load_ingredients()
+    if preferences:
+        prompt += f"\n\n## What you know about this user\n{preferences}"
+    return prompt
 
 
 async def _summarize_session(messages: list, existing_preferences: str) -> str:
@@ -133,5 +148,4 @@ async def run_claude(user_text: str, db: aiosqlite.Connection) -> str:
             messages.append({"role": "user", "content": tool_results})
 
         else:
-            # Unexpected stop reason — bail out
-            return "Sorry, something went wrong. Please try again."
+            return "Something went wrong. Please try again."

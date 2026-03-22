@@ -5,9 +5,9 @@ import uvicorn
 from dotenv import load_dotenv
 from telegram.ext import Application
 
-from bot.handlers import BOT_COMMANDS, register_handlers
-from db.database import init_db
-from web.app import app as fastapi_app
+from mealplanner.bot.handlers import BOT_COMMANDS, register_handlers
+from mealplanner.db.database import init_db
+from mealplanner.web.app import app as fastapi_app
 
 load_dotenv(override=True)
 

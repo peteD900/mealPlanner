@@ -1,7 +1,10 @@
+import json
 import os
 from datetime import datetime, timezone
 
 import aiosqlite
+
+from mealplanner.bot.models import MealPlan, Recipe
 
 DB_PATH = os.getenv("DB_PATH", "data/mealplanner.db")
 
@@ -30,19 +33,31 @@ async def init_db() -> None:
                 summary TEXT NOT NULL DEFAULT '',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS meal_plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                meals TEXT NOT NULL,
+                week_of DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         await db.commit()
 
 
 # --- Recipes ---
 
-async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, instructions: str) -> int:
+async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, instructions: str) -> Recipe:
     cursor = await db.execute(
         "INSERT INTO recipes (title, ingredients, instructions) VALUES (?, ?, ?)",
         (title, ingredients, instructions),
     )
     await db.commit()
-    return cursor.lastrowid
+    rows = await db.execute_fetchall(
+        "SELECT id, title, ingredients, instructions, created_at FROM recipes WHERE id = ?",
+        (cursor.lastrowid,),
+    )
+    r = rows[0]
+    return Recipe(id=r[0], title=r[1], ingredients=r[2], instructions=r[3], created_at=r[4])
 
 
 async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None) -> None:
@@ -73,9 +88,35 @@ async def db_list_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
         return await cursor.fetchall()
 
 
-async def db_get_recipe(db: aiosqlite.Connection, id: int) -> aiosqlite.Row | None:
-    async with db.execute("SELECT * FROM recipes WHERE id = ?", (id,)) as cursor:
-        return await cursor.fetchone()
+async def db_get_recipe(db: aiosqlite.Connection, id: int) -> Recipe | None:
+    async with db.execute(
+        "SELECT id, title, ingredients, instructions, created_at FROM recipes WHERE id = ?", (id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return Recipe(id=row[0], title=row[1], ingredients=row[2], instructions=row[3], created_at=row[4])
+
+
+# --- Meal plans ---
+
+async def db_save_meal_plan(db: aiosqlite.Connection, meals: list[str], week_of: str | None = None) -> MealPlan:
+    await db.execute(
+        "INSERT INTO meal_plans (meals, week_of) VALUES (?, ?)",
+        (json.dumps(meals), week_of),
+    )
+    await db.commit()
+    return MealPlan(meals=meals, week_of=week_of)
+
+
+async def db_get_meal_plan(db: aiosqlite.Connection) -> MealPlan | None:
+    async with db.execute(
+        "SELECT meals, week_of FROM meal_plans ORDER BY created_at DESC LIMIT 1"
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return MealPlan(meals=json.loads(row[0]), week_of=row[1])
 
 
 # --- Session messages ---

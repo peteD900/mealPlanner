@@ -3,10 +3,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from db.database import DB_PATH, db_get_recipe, db_list_recipes
+from mealplanner.db.database import DB_PATH, db_get_recipe, db_list_recipes
 
 app = FastAPI()
-templates = Jinja2Templates(directory="web/templates")
+templates = Jinja2Templates(directory="mealplanner/web/templates")
 
 
 @app.get("/", response_class=HTMLResponse)
