@@ -1,0 +1,16 @@
+[project]
+name = "mealplanner"
+version = "0.1.0"
+description = "Personal meal planning tool with Telegram bot and web UI"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
+    "python-telegram-bot>=21.0",
+    "anthropic>=0.40.0",
+    "aiosqlite>=0.20.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]

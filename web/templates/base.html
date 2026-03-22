@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Meal Planner{% endblock %}</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+        nav { margin-bottom: 2rem; }
+        nav a { text-decoration: none; color: #555; font-size: 0.9rem; }
+        nav a:hover { color: #000; }
+        h1 { margin-top: 0; }
+        a { color: #2563eb; }
+        a:visited { color: #7c3aed; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        thead tr { border-bottom: 2px solid #e5e7eb; }
+        tbody tr { border-bottom: 1px solid #f3f4f6; }
+        tbody tr:hover { background: #f9fafb; }
+        th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+        td { padding: 0.75rem; }
+        td.num { color: #9ca3af; font-size: 0.85rem; width: 2.5rem; }
+        .empty { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <nav><a href="/">&#8592; All recipes</a></nav>
+    {% block content %}{% endblock %}
+</body>
+</html>

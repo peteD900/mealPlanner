@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe['title'] }}{% endblock %}
+
+{% block content %}
+<h1>{{ recipe['title'] }}</h1>
+
+<h2>Ingredients</h2>
+<ul>
+    {% for line in recipe['ingredients'].splitlines() %}
+    {% if line.strip() %}
+    <li>{{ line.strip() }}</li>
+    {% endif %}
+    {% endfor %}
+</ul>
+
+<h2>Instructions</h2>
+<ol>
+    {% for line in recipe['instructions'].splitlines() %}
+    {% if line.strip() %}
+    <li>{{ line.strip() }}</li>
+    {% endif %}
+    {% endfor %}
+</ol>
+{% endblock %}

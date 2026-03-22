@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Recipes{% endblock %}
+
+{% block content %}
+<h1>Recipes</h1>
+{% if recipes %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Recipe</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for recipe in recipes %}
+        <tr>
+            <td class="num">{{ recipe['id'] }}</td>
+            <td><a href="/recipe/{{ recipe['id'] }}">{{ recipe['title'] }}</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">No recipes yet — add some via Telegram!</p>
+{% endif %}
+{% endblock %}
