@@ -88,6 +88,15 @@ async def db_list_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
         return await cursor.fetchall()
 
 
+async def db_search_recipes(db: aiosqlite.Connection, query: str) -> list[aiosqlite.Row]:
+    pattern = f"%{query}%"
+    async with db.execute(
+        "SELECT id, title FROM recipes WHERE title LIKE ? OR ingredients LIKE ? ORDER BY created_at DESC",
+        (pattern, pattern),
+    ) as cursor:
+        return await cursor.fetchall()
+
+
 async def db_get_recipe(db: aiosqlite.Connection, id: int) -> Recipe | None:
     async with db.execute(
         "SELECT id, title, ingredients, instructions, created_at FROM recipes WHERE id = ?", (id,)

@@ -10,6 +10,7 @@ from mealplanner.db.database import (
     db_get_meal_plan,
     db_list_recipes,
     db_save_meal_plan,
+    db_search_recipes,
 )
 
 TOOLS = [
@@ -115,6 +116,21 @@ TOOLS = [
         },
     },
     {
+        "name": "search_recipes",
+        "description": (
+            "Search saved recipes by keyword. Searches both title and ingredients. "
+            "Use this when the user asks whether they have a recipe for something, "
+            "or wants to find recipes containing a specific ingredient."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Keyword to search for in recipe titles and ingredients"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "get_meal_plan",
         "description": (
             "Retrieve the most recently saved meal plan. Use this when the user asks what's planned for the week "
@@ -154,7 +170,7 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             recipes = await db_list_recipes(db)
             if not recipes:
                 return ToolResult(success=True, message="No recipes saved yet.").model_dump_json()
-            lines = "\n".join(f"{r[0]}: {r[1]}" for r in recipes)
+            lines = "\n".join(f"{r['id']}: {r['title']}" for r in recipes)
             return ToolResult(success=True, message=lines).model_dump_json()
 
         elif name == "get_recipe":
@@ -166,6 +182,13 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
                 message=recipe.title,
                 data={"title": recipe.title, "ingredients": recipe.ingredients, "instructions": recipe.instructions},
             ).model_dump_json()
+
+        elif name == "search_recipes":
+            recipes = await db_search_recipes(db, inputs["query"])
+            if not recipes:
+                return ToolResult(success=True, message=f"No recipes found matching '{inputs['query']}'.").model_dump_json()
+            lines = "\n".join(f"{r['id']}: {r['title']}" for r in recipes)
+            return ToolResult(success=True, message=lines).model_dump_json()
 
         elif name == "save_meal_plan":
             plan = MealPlan(meals=inputs["meals"], week_of=inputs.get("week_of"))
