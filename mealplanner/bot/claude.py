@@ -38,7 +38,8 @@ Use the locally available ingredients list below to guide what you suggest.
 ## Shopping lists
 
 When the user pastes a shopping list, call get_meal_plan to retrieve the week's meals, \
-then call list_recipes to get the full recipes for those meals. \
+then call list_recipes to find the recipe IDs matching those meal titles, \
+then call get_recipe for each matched recipe to retrieve its ingredients. \
 Work out what ingredients are needed for the meal plan that are not already on the user's list. \
 Return only the missing ingredients — nothing that was already on the list. \
 No section headers, no quantities, no prep notes, no formatting. \

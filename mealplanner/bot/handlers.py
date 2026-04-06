@@ -2,6 +2,7 @@ import re
 
 import aiosqlite
 import httpx
+from bs4 import BeautifulSoup
 from telegram import BotCommand, Update
 from telegram.ext import (
     Application,
@@ -18,6 +19,7 @@ URL_RE = re.compile(r"https?://\S+")
 MAX_PAGE_CHARS = 8000
 
 BOT_COMMANDS = [
+    BotCommand("start", "Get started"),
     BotCommand("recipes", "List all saved recipes"),
     BotCommand("help", "Show available commands"),
 ]
@@ -33,7 +35,13 @@ async def _fetch_url_text(url: str) -> str:
     async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
         response = await client.get(url)
         response.raise_for_status()
-        return response.text[:MAX_PAGE_CHARS]
+    soup = BeautifulSoup(response.text, "lxml")
+    for tag in soup(["script", "style", "nav", "header", "footer"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n")
+    # Collapse blank lines
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    return "\n".join(lines)[:MAX_PAGE_CHARS]
 
 
 async def _run_claude_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str) -> None:
@@ -75,7 +83,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "Create a recipe inspired by this and offer to save it."
             )
         except Exception:
-            pass
+            user_text = (
+                f"[Could not fetch content from {url} — the page was unavailable or blocked.]\n\n"
+                + user_text
+            )
 
     await _run_claude_reply(update, context, user_text)
 
