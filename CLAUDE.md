@@ -5,17 +5,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run the app (kills any existing instance first)
+# Run the app locally (kills any existing instance first)
 ./scripts/run.sh
 
 # Reset dev state (clears meal plans + conversation history, keeps recipes)
-uv run scripts/reset_dev.py
+uv run python scripts/reset_dev.py
 
 # Install dependencies
 uv sync
 
 # Add a dependency
 uv add <package>
+```
+
+## Deploying with Docker
+
+```bash
+git clone <repo>
+cd mealPlanner
+cp .env.example .env        # fill in TELEGRAM_TOKEN and ANTHROPIC_API_KEY
+# copy data/ingredients.txt and data/sites.txt into ./data/
+docker compose up -d
+```
+
+The `./data` directory is mounted as a volume — the database and config files persist across restarts and rebuilds. To update the app:
+
+```bash
+git pull
+docker compose up -d --build
 ```
 
 No tests exist yet. No linting is configured.
