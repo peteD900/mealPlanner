@@ -43,7 +43,8 @@ Use the locally available ingredients list below to guide what you suggest.
 When the user pastes a shopping list: \
 1. Call get_meal_plan with no week_of argument to get the most recent plan. \
 2. Each meal in the plan has an id and title. Call get_recipe for each meal id to retrieve its ingredients. \
-3. Combine all ingredients from those recipes. Remove anything already on the user's list. \
+   If get_recipe returns not found for a meal, skip that meal silently — do not mention it. \
+3. Combine all ingredients from the recipes you retrieved. Remove anything already on the user's list. \
 4. Call return_shopping_list with the missing ingredients — one plain name per item, no quantities, no prep notes. Do not say anything else.
 
 ## Meal planning
@@ -173,13 +174,17 @@ async def run_claude(user_text: str, db: aiosqlite.Connection) -> str:
                 if block.type == "tool_use":
                     result = await execute_tool(block.name, block.input, db)
                     if result.startswith(SHOPPING_LIST_SENTINEL):
+                        # Capture output but keep looping so all tool results are collected
                         shopping_list_output = result[len(SHOPPING_LIST_SENTINEL):]
+                        # Replace sentinel in tool result so the API sees a clean ack
+                        result = '{"success": true, "message": "Shopping list returned."}'
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
                         "content": result,
                     })
 
+            # Return shopping list immediately after all tools in this turn are processed
             if shopping_list_output is not None:
                 await append_session_message(db, "user", user_text)
                 await append_session_message(db, "assistant", shopping_list_output)
