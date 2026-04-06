@@ -66,17 +66,17 @@ Two services run concurrently from `main.py` via asyncio:
 
 ### Tools available to Claude
 
-`save_recipe`, `update_recipe`, `delete_recipe`, `list_recipes`, `get_recipe`, `save_meal_plan`, `get_meal_plan`
+`save_recipe`, `update_recipe`, `delete_recipe`, `list_recipes`, `get_recipe`, `search_recipes`, `save_meal_plan`, `get_meal_plan`, `return_shopping_list`
 
 ### Pydantic models
 
-`mealplanner/bot/models.py` — `Recipe`, `MealPlan`, `ToolResult`. Tool inputs are validated against these before DB operations.
+`mealplanner/bot/models.py` — `Recipe`, `MealEntry`, `MealPlan`, `ShoppingList`, `ToolResult`. Tool inputs are validated against these before DB operations.
 
 ### Database
 
 `mealplanner/db/database.py` — async SQLite (aiosqlite) with four tables:
 - `recipes` — the recipe store
-- `meal_plans` — weekly meal plans (JSON array of meal titles, latest row is current)
+- `meal_plans` — one row per week (unique index on `week_of`); meals stored as JSON array of `{id, title}` objects; upserted on save
 - `session_messages` — conversation history
 - `user_preferences` — singleton row; Claude-generated summary of user tastes
 
@@ -94,7 +94,7 @@ Two services run concurrently from `main.py` via asyncio:
 
 ### Shopping list flow
 
-User pastes their existing AnyList list → Claude calls `get_meal_plan` + `list_recipes` → returns only the ingredients missing from the pasted list, one per line, plain text, no headers or formatting.
+User pastes their existing AnyList list → Claude calls `get_meal_plan` (no args, gets most recent week) → calls `get_recipe` for each meal ID in the plan → computes missing ingredients → calls `return_shopping_list` with the result. Output is one ingredient per line, plain text, no headers or formatting.
 
 ### Model
 

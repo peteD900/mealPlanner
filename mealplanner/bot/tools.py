@@ -1,4 +1,5 @@
 import aiosqlite
+from datetime import date, timedelta
 from pydantic import ValidationError
 
 from mealplanner.bot.models import MealEntry, MealPlan, Recipe, ShoppingList, ToolResult
@@ -190,17 +191,21 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             return ToolResult(success=True, message=f"Saved as recipe #{saved.id}", data={"id": saved.id, "title": saved.title}).model_dump_json()
 
         elif name == "update_recipe":
-            await db_edit_recipe(
+            found = await db_edit_recipe(
                 db,
                 id=inputs["id"],
                 title=inputs.get("title"),
                 ingredients=inputs.get("ingredients"),
                 instructions=inputs.get("instructions"),
             )
+            if not found:
+                return ToolResult(success=False, message=f"No recipe found with id={inputs['id']}").model_dump_json()
             return ToolResult(success=True, message=f"Recipe #{inputs['id']} updated").model_dump_json()
 
         elif name == "delete_recipe":
-            await db_delete_recipe(db, inputs["id"])
+            found = await db_delete_recipe(db, inputs["id"])
+            if not found:
+                return ToolResult(success=False, message=f"No recipe found with id={inputs['id']}").model_dump_json()
             return ToolResult(success=True, message=f"Recipe #{inputs['id']} deleted").model_dump_json()
 
         elif name == "list_recipes":
@@ -228,8 +233,12 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             return ToolResult(success=True, message=lines).model_dump_json()
 
         elif name == "save_meal_plan":
+            week_of_date = date.fromisoformat(inputs["week_of"])
+            if week_of_date.weekday() != 0:  # 0 = Monday
+                correct = week_of_date - timedelta(days=week_of_date.weekday())
+                return ToolResult(success=False, message=f"week_of must be a Monday. {inputs['week_of']} is a {week_of_date.strftime('%A')}. Use {correct} instead.").model_dump_json()
             entries = [MealEntry(id=m["id"], title=m["title"]) for m in inputs["meals"]]
-            plan = MealPlan(meals=entries, week_of=inputs["week_of"])
+            plan = MealPlan(meals=entries, week_of=week_of_date)
             await db_save_meal_plan(db, plan.meals, str(plan.week_of))
             return ToolResult(success=True, message=f"Meal plan saved for week of {plan.week_of}.", data={"meals": [m.model_dump() for m in plan.meals], "week_of": str(plan.week_of)}).model_dump_json()
 

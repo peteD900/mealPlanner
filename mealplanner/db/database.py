@@ -54,15 +54,11 @@ async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, 
         (title, ingredients, instructions),
     )
     await db.commit()
-    rows = await db.execute_fetchall(
-        "SELECT id, title, ingredients, instructions, created_at FROM recipes WHERE id = ?",
-        (cursor.lastrowid,),
-    )
-    r = rows[0]
-    return Recipe(id=r[0], title=r[1], ingredients=r[2], instructions=r[3], created_at=r[4])
+    return Recipe(id=cursor.lastrowid, title=title, ingredients=ingredients, instructions=instructions)
 
 
-async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None) -> None:
+async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None) -> bool:
+    """Returns False if no recipe with that ID exists."""
     fields, values = [], []
     if title is not None:
         fields.append("title = ?")
@@ -74,15 +70,18 @@ async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, i
         fields.append("instructions = ?")
         values.append(instructions)
     if not fields:
-        return
+        return True
     values.append(id)
-    await db.execute(f"UPDATE recipes SET {', '.join(fields)} WHERE id = ?", values)
+    cursor = await db.execute(f"UPDATE recipes SET {', '.join(fields)} WHERE id = ?", values)
     await db.commit()
+    return cursor.rowcount > 0
 
 
-async def db_delete_recipe(db: aiosqlite.Connection, id: int) -> None:
-    await db.execute("DELETE FROM recipes WHERE id = ?", (id,))
+async def db_delete_recipe(db: aiosqlite.Connection, id: int) -> bool:
+    """Returns False if no recipe with that ID exists."""
+    cursor = await db.execute("DELETE FROM recipes WHERE id = ?", (id,))
     await db.commit()
+    return cursor.rowcount > 0
 
 
 async def db_list_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
