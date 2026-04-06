@@ -59,7 +59,7 @@ The web UI runs on `127.0.0.1:8000` inside the VPS — it is **not** exposed pub
 
 1. In NPM, add a **Proxy Host**
 2. **Domain**: your domain or subdomain (e.g. `meals.yourdomain.com`)
-3. **Forward Hostname / IP**: `127.0.0.1`
+3. **Forward Hostname / IP**: `mealplanner` (Docker resolves the container name internally)
 4. **Forward Port**: `8000`
 5. Enable SSL via Let's Encrypt
 
