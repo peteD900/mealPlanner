@@ -18,6 +18,7 @@ from mealplanner.db.database import (
 SESSION_TIMEOUT_HOURS = 2
 
 INGREDIENTS_PATH = Path(os.getenv("INGREDIENTS_PATH", "data/ingredients.txt"))
+SITES_PATH = Path(os.getenv("SITES_PATH", "data/sites.txt"))
 
 _SYSTEM_BASE = """\
 You are a meal planning assistant. Be minimal and direct — no chit-chat, no sign-offs, no filler. \
@@ -29,7 +30,9 @@ Never use markdown syntax (no asterisks, no underscores, no backtick fences).
 ## Recipes
 
 When the user asks for a recipe or wants to save one, present it clearly then ask if they want to save it. \
-When they confirm (e.g. "save that", "yes"), call save_recipe immediately. \
+When they confirm (e.g. "save that", "yes"), call save_recipe immediately — never skip the tool call. \
+After saving, your confirmation must include the recipe ID returned by the tool (e.g. "Saved as recipe #3."). \
+Never say "Saved" without having called save_recipe and received an ID. \
 Before calling update_recipe or delete_recipe, confirm intent if it is not obvious.
 
 Ingredients must be stored as plain names — no quantities, no prep notes. \
@@ -71,6 +74,22 @@ def _load_ingredients() -> str:
     return ""
 
 
+def _load_sites() -> str:
+    try:
+        lines = SITES_PATH.read_text().splitlines()
+        cleaned = [line.lstrip("-•* \t") for line in lines if line.strip()]
+        if cleaned:
+            return (
+                "\n\n## Recipe style inspiration\n"
+                "Draw stylistic inspiration from these sources when suggesting recipes — "
+                "their flavour profiles, techniques, and presentation style. You are not limited to them.\n"
+                + "\n".join(cleaned)
+            )
+    except FileNotFoundError:
+        pass
+    return ""
+
+
 def _build_system_prompt(preferences: str) -> str:
     today = datetime.now(timezone.utc).date()
     days_since_monday = today.weekday()  # Monday=0
@@ -81,7 +100,7 @@ def _build_system_prompt(preferences: str) -> str:
         f"This week's Monday is {this_monday}. Next week's Monday is {next_monday}. "
         f"You have been given the current date — never tell the user you don't know it."
     )
-    prompt = _SYSTEM_BASE + date_context + _load_ingredients()
+    prompt = _SYSTEM_BASE + date_context + _load_ingredients() + _load_sites()
     if preferences:
         prompt += f"\n\n## What you know about this user\n{preferences}"
     return prompt

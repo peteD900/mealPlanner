@@ -71,6 +71,10 @@ Two services run concurrently from `main.py` via asyncio:
 
 `data/ingredients.txt` — user-maintained list of locally available ingredients (Portugal). One item per line; bullet/dash prefixes are stripped automatically on load. Injected into Claude's system prompt to ground recipe suggestions and shopping lists. Edit this file directly to add or remove items.
 
+### Recipe style inspiration
+
+`data/sites.txt` — user-maintained list of cooking websites whose style Claude should draw inspiration from. One site per line (e.g. `Smitten Kitchen (smittenkitchen.com)`). Injected into the system prompt at runtime — no fetching occurs. Claude uses its training knowledge of these sites for style guidance.
+
 ### Shopping list flow
 
 User pastes their existing AnyList list → Claude calls `get_meal_plan` + `list_recipes` → returns only the ingredients missing from the pasted list, one per line, plain text, no headers or formatting.
