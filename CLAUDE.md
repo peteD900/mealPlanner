@@ -5,8 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run the app
-uv run python main.py
+# Run the app (kills any existing instance first)
+./scripts/run.sh
+
+# Reset dev state (clears meal plans + conversation history, keeps recipes)
+uv run scripts/reset_dev.py
 
 # Install dependencies
 uv sync

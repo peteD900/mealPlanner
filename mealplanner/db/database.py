@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
-from mealplanner.bot.models import MealPlan, Recipe
+from mealplanner.bot.models import MealEntry, MealPlan, Recipe
 
 DB_PATH = os.getenv("DB_PATH", "data/mealplanner.db")
 
@@ -37,9 +37,11 @@ async def init_db() -> None:
             CREATE TABLE IF NOT EXISTS meal_plans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 meals TEXT NOT NULL,
-                week_of DATE,
+                week_of DATE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_week_of ON meal_plans (week_of);
         """)
         await db.commit()
 
@@ -109,23 +111,31 @@ async def db_get_recipe(db: aiosqlite.Connection, id: int) -> Recipe | None:
 
 # --- Meal plans ---
 
-async def db_save_meal_plan(db: aiosqlite.Connection, meals: list[str], week_of: str | None = None) -> MealPlan:
+async def db_save_meal_plan(db: aiosqlite.Connection, meals: list[MealEntry], week_of: str) -> MealPlan:
     await db.execute(
-        "INSERT INTO meal_plans (meals, week_of) VALUES (?, ?)",
-        (json.dumps(meals), week_of),
+        "INSERT INTO meal_plans (meals, week_of) VALUES (?, ?) "
+        "ON CONFLICT(week_of) DO UPDATE SET meals = excluded.meals",
+        (json.dumps([m.model_dump() for m in meals]), week_of),
     )
     await db.commit()
     return MealPlan(meals=meals, week_of=week_of)
 
 
-async def db_get_meal_plan(db: aiosqlite.Connection) -> MealPlan | None:
-    async with db.execute(
-        "SELECT meals, week_of FROM meal_plans ORDER BY created_at DESC LIMIT 1"
-    ) as cursor:
-        row = await cursor.fetchone()
+async def db_get_meal_plan(db: aiosqlite.Connection, week_of: str | None = None) -> MealPlan | None:
+    if week_of:
+        async with db.execute(
+            "SELECT meals, week_of FROM meal_plans WHERE week_of = ?", (week_of,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    else:
+        async with db.execute(
+            "SELECT meals, week_of FROM meal_plans ORDER BY week_of DESC LIMIT 1"
+        ) as cursor:
+            row = await cursor.fetchone()
     if row is None:
         return None
-    return MealPlan(meals=json.loads(row[0]), week_of=row[1])
+    meals = [MealEntry(**m) for m in json.loads(row[0])]
+    return MealPlan(meals=meals, week_of=row[1])
 
 
 # --- Session messages ---

@@ -11,9 +11,18 @@ class Recipe(BaseModel):
     created_at: datetime | None = None
 
 
+class MealEntry(BaseModel):
+    id: int   # recipe ID
+    title: str
+
+
 class MealPlan(BaseModel):
-    meals: list[str]  # recipe titles
-    week_of: date | None = None
+    meals: list[MealEntry]
+    week_of: date  # always a Monday
+
+
+class ShoppingList(BaseModel):
+    items: list[str]  # plain ingredient names, one per item
 
 
 class ToolResult(BaseModel):

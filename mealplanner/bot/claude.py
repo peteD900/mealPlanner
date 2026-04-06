@@ -5,7 +5,7 @@ from pathlib import Path
 import anthropic
 import aiosqlite
 
-from mealplanner.bot.tools import TOOLS, execute_tool
+from mealplanner.bot.tools import SHOPPING_LIST_SENTINEL, TOOLS, execute_tool
 from mealplanner.db.database import (
     append_session_message,
     clear_session_messages,
@@ -37,18 +37,21 @@ Use the locally available ingredients list below to guide what you suggest.
 
 ## Shopping lists
 
-When the user pastes a shopping list, call get_meal_plan to retrieve the week's meals, \
-then call list_recipes to find the recipe IDs matching those meal titles, \
-then call get_recipe for each matched recipe to retrieve its ingredients. \
-Work out what ingredients are needed for the meal plan that are not already on the user's list. \
-Return only the missing ingredients — nothing that was already on the list. \
-No section headers, no quantities, no prep notes, no formatting. \
-One ingredient per line, plain text only. Nothing else in the response — just the new items, ready to copy.
+When the user pastes a shopping list: \
+1. Call get_meal_plan with no week_of argument to get the most recent plan. \
+2. Each meal in the plan has an id and title. Call get_recipe for each meal id to retrieve its ingredients. \
+3. Combine all ingredients from those recipes. Remove anything already on the user's list. \
+4. Call return_shopping_list with the missing ingredients — one plain name per item, no quantities, no prep notes. Do not say anything else.
 
 ## Meal planning
 
-When the user wants to plan their week, use get_meal_plan to check what's already saved, \
-suggest meals, then call save_meal_plan once confirmed.
+Meal plans are stored per week, identified by the Monday of that week. \
+When the user wants to plan meals, always confirm which week they mean before saving \
+(e.g. "Which week — this one starting Monday 7 April, or next week?"). \
+Use get_meal_plan to check what's already saved for that week. \
+Each meal must be a saved recipe — use the ID returned by save_recipe or look up IDs via list_recipes. \
+Call save_meal_plan with meals as a list of objects with id and title, and week_of as the Monday ISO date. \
+Saving overwrites the existing plan for that week.
 
 ## URLs
 
@@ -69,7 +72,16 @@ def _load_ingredients() -> str:
 
 
 def _build_system_prompt(preferences: str) -> str:
-    prompt = _SYSTEM_BASE + _load_ingredients()
+    today = datetime.now(timezone.utc).date()
+    days_since_monday = today.weekday()  # Monday=0
+    this_monday = today - timedelta(days=days_since_monday)
+    next_monday = this_monday + timedelta(days=7)
+    date_context = (
+        f"\n\n## Current date\nToday is {today.strftime('%A %-d %B %Y')}. "
+        f"This week's Monday is {this_monday}. Next week's Monday is {next_monday}. "
+        f"You have been given the current date — never tell the user you don't know it."
+    )
+    prompt = _SYSTEM_BASE + date_context + _load_ingredients()
     if preferences:
         prompt += f"\n\n## What you know about this user\n{preferences}"
     return prompt
@@ -137,14 +149,22 @@ async def run_claude(user_text: str, db: aiosqlite.Connection) -> str:
             messages.append({"role": "assistant", "content": response.content})
 
             tool_results = []
+            shopping_list_output = None
             for block in response.content:
                 if block.type == "tool_use":
                     result = await execute_tool(block.name, block.input, db)
+                    if result.startswith(SHOPPING_LIST_SENTINEL):
+                        shopping_list_output = result[len(SHOPPING_LIST_SENTINEL):]
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
                         "content": result,
                     })
+
+            if shopping_list_output is not None:
+                await append_session_message(db, "user", user_text)
+                await append_session_message(db, "assistant", shopping_list_output)
+                return shopping_list_output
 
             messages.append({"role": "user", "content": tool_results})
 
