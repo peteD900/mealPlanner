@@ -35,7 +35,10 @@ git pull
 docker compose up -d --build
 ```
 
-No tests exist yet. No linting is configured.
+# Run tests
+uv run pytest tests/ -v
+
+No linting is configured.
 
 ## Environment
 
