@@ -44,7 +44,7 @@ async def _fetch_url_text(url: str) -> str:
 
 
 async def _run_claude_reply(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str) -> None:
-    async with await open_db() as db:
+    async with open_db() as db:
         reply = await run_claude(user_text, db)
     await update.message.reply_text(reply, parse_mode="HTML")
 
@@ -56,7 +56,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_recipes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    async with await open_db() as db:
+    async with open_db() as db:
         recipes = await db_list_recipes(db)
     if not recipes:
         await update.message.reply_text("No recipes saved yet.")
