@@ -259,3 +259,5 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
 
     except (ValidationError, KeyError) as e:
         return ToolResult(success=False, message=f"Invalid input: {e}").model_dump_json()
+    except Exception as e:
+        return ToolResult(success=False, message=f"Tool error: {e}").model_dump_json()

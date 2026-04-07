@@ -9,9 +9,19 @@ from mealplanner.bot.models import MealEntry, MealPlan, Recipe
 DB_PATH = os.getenv("DB_PATH", "data/mealplanner.db")
 
 
+async def open_db() -> aiosqlite.Connection:
+    """Open a database connection with recommended pragmas."""
+    db = await aiosqlite.connect(DB_PATH)
+    db.row_factory = aiosqlite.Row
+    await db.execute("PRAGMA busy_timeout=5000")
+    return db
+
+
 async def init_db() -> None:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=5000")
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS recipes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
