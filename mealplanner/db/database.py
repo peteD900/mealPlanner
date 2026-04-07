@@ -1,6 +1,8 @@
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import AsyncIterator
 
 import aiosqlite
 
@@ -9,12 +11,13 @@ from mealplanner.bot.models import MealEntry, MealPlan, Recipe
 DB_PATH = os.getenv("DB_PATH", "data/mealplanner.db")
 
 
-async def open_db() -> aiosqlite.Connection:
-    """Open a database connection with recommended pragmas."""
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA busy_timeout=5000")
-    return db
+@asynccontextmanager
+async def open_db() -> AsyncIterator[aiosqlite.Connection]:
+    """Async context manager: open a DB connection with recommended pragmas."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA busy_timeout=5000")
+        yield db
 
 
 async def init_db() -> None:

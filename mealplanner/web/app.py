@@ -10,7 +10,7 @@ templates = Jinja2Templates(directory="mealplanner/web/templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def recipe_list(request: Request):
-    async with await open_db() as db:
+    async with open_db() as db:
         recipes = await db_list_recipes(db)
     return templates.TemplateResponse(
         "recipe_list.html", {"request": request, "recipes": recipes}
@@ -19,7 +19,7 @@ async def recipe_list(request: Request):
 
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
 async def recipe_detail(request: Request, recipe_id: int):
-    async with await open_db() as db:
+    async with open_db() as db:
         recipe = await db_get_recipe(db, recipe_id)
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
