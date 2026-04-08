@@ -19,7 +19,7 @@
     min-height: 44px;
 }
 .search-input:focus {
-    border-color: #2563eb;
+    border-color: #4f7c6e;
 }
 .search-input::placeholder { color: #9ca3af; }
 .recipe-list {
@@ -32,13 +32,18 @@
 }
 .recipe-item a {
     display: block;
-    padding: 0.9rem 0.25rem;
+    padding: 0.9rem 0.25rem 0.9rem 0.75rem;
     min-height: 44px;
     text-decoration: none;
-    transition: background 0.12s;
+    border-left: 2px solid transparent;
+    transition: border-color 0.15s, background 0.12s;
+}
+.recipe-item a:hover {
+    border-left-color: #4f7c6e;
 }
 .recipe-item a:active {
     background: #f3f4f6;
+    border-left-color: #4f7c6e;
 }
 .recipe-title {
     color: #1a1a1a;
