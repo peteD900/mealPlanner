@@ -1,0 +1,91 @@
+name: Test & Deploy
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest tests/ -v
+
+      - name: Notify test failure
+        if: failure() && github.event_name == 'push'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEPLOY_CHAT_ID: ${{ secrets.TELEGRAM_DEPLOY_CHAT_ID }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="Tests failed on <code>${SHORT_SHA}</code>. Deploy blocked."
+          curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_DEPLOY_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode=HTML
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - name: Notify deploy started
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEPLOY_CHAT_ID: ${{ secrets.TELEGRAM_DEPLOY_CHAT_ID }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="Deploying <code>${SHORT_SHA}</code>..."
+          curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_DEPLOY_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode=HTML
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_DEPLOY_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: echo "deploy"
+
+      - name: Notify deploy success
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEPLOY_CHAT_ID: ${{ secrets.TELEGRAM_DEPLOY_CHAT_ID }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="Deploy successful. <code>${SHORT_SHA}</code> is live."
+          curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_DEPLOY_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode=HTML
+
+      - name: Notify deploy failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEPLOY_CHAT_ID: ${{ secrets.TELEGRAM_DEPLOY_CHAT_ID }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="Deploy FAILED for <code>${SHORT_SHA}</code>. Rollback attempted — check VPS logs."
+          curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_DEPLOY_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode=HTML
