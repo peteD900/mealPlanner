@@ -98,7 +98,7 @@ async def db_delete_recipe(db: aiosqlite.Connection, id: int) -> bool:
 
 
 async def db_list_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
-    async with db.execute("SELECT id, title FROM recipes ORDER BY created_at DESC") as cursor:
+    async with db.execute("SELECT id, title, created_at FROM recipes ORDER BY created_at DESC") as cursor:
         return await cursor.fetchall()
 
 

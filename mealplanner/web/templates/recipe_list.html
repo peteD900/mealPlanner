@@ -2,26 +2,103 @@
 
 {% block title %}Recipes{% endblock %}
 
+{% block nav %}{% endblock %}
+
+{% block extra_css %}
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a1a;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 1rem;
+    min-height: 44px;
+}
+.search-input:focus {
+    border-color: #2563eb;
+}
+.search-input::placeholder { color: #9ca3af; }
+.recipe-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.recipe-item {
+    border-bottom: 1px solid #f0eeeb;
+}
+.recipe-item a {
+    display: block;
+    padding: 0.9rem 0.25rem;
+    min-height: 44px;
+    text-decoration: none;
+    transition: background 0.12s;
+}
+.recipe-item a:active {
+    background: #f3f4f6;
+}
+.recipe-title {
+    color: #1a1a1a;
+    font-size: 1.05rem;
+    font-weight: 500;
+}
+.recipe-date {
+    color: #9ca3af;
+    font-size: 0.8rem;
+    margin-top: 0.15rem;
+}
+.recipe-item a:visited .recipe-title { color: #374151; }
+.no-results {
+    color: #9ca3af;
+    text-align: center;
+    padding: 2rem 1rem;
+    display: none;
+}
+{% endblock %}
+
 {% block content %}
 <h1>Recipes</h1>
 {% if recipes %}
-<table>
-    <thead>
-        <tr>
-            <th>#</th>
-            <th>Recipe</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for recipe in recipes %}
-        <tr>
-            <td class="num">{{ recipe['id'] }}</td>
-            <td><a href="/recipe/{{ recipe['id'] }}">{{ recipe['title'] }}</a></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<input type="text" class="search-input" placeholder="Search recipes..." aria-label="Search recipes">
+<ul class="recipe-list" id="recipeList">
+    {% for recipe in recipes %}
+    <li class="recipe-item">
+        <a href="/recipe/{{ recipe['id'] }}">
+            <div class="recipe-title">{{ recipe['title'] }}</div>
+            {% if recipe['created_at'] %}
+            <div class="recipe-date">Added {{ recipe['created_at'][:10] }}</div>
+            {% endif %}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+<p class="no-results" id="noResults">No matching recipes</p>
 {% else %}
 <p class="empty">No recipes yet — add some via Telegram!</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if recipes %}
+<script>
+(function() {
+    var input = document.querySelector('.search-input');
+    var items = document.querySelectorAll('.recipe-item');
+    var noResults = document.getElementById('noResults');
+    input.addEventListener('input', function() {
+        var q = this.value.toLowerCase();
+        var visible = 0;
+        items.forEach(function(item) {
+            var match = item.textContent.toLowerCase().includes(q);
+            item.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        noResults.style.display = visible === 0 ? 'block' : 'none';
+    });
+})();
+</script>
 {% endif %}
 {% endblock %}
