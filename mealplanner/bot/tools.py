@@ -34,7 +34,7 @@ TOOLS = [
                 },
                 "instructions": {
                     "type": "string",
-                    "description": "Newline-separated cooking steps",
+                    "description": "Newline-separated cooking steps, no leading numbers",
                 },
             },
             "required": ["title", "ingredients", "instructions"],
@@ -44,15 +44,23 @@ TOOLS = [
         "name": "update_recipe",
         "description": (
             "Update an existing saved recipe by ID. Only provide the fields you want to change. "
-            "Call this when the user asks to edit or modify a specific recipe."
+            "Call this when the user asks to edit or modify a specific recipe. "
+            "Ingredients must be a newline-separated list of plain ingredient names (no quantities, no prep notes). "
+            "Instructions must be newline-separated steps with NO leading numbers — the UI numbers them automatically."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "id": {"type": "integer", "description": "Recipe ID from list_recipes or save_recipe"},
                 "title": {"type": "string"},
-                "ingredients": {"type": "string"},
-                "instructions": {"type": "string"},
+                "ingredients": {
+                    "type": "string",
+                    "description": "Newline-separated ingredient names, e.g. 'olive oil\\nwhite onions\\ngarlic'",
+                },
+                "instructions": {
+                    "type": "string",
+                    "description": "Newline-separated cooking steps, no leading numbers",
+                },
             },
             "required": ["id"],
         },
