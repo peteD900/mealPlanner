@@ -2,14 +2,110 @@
 
 {% block title %}{{ recipe['title'] }}{% endblock %}
 
+{% block extra_css %}
+.recipe-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+.recipe-header h1 { flex: 1; margin-bottom: 0; }
+.wake-lock-btn {
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    min-height: 44px;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+    margin-top: 0.15rem;
+}
+.wake-lock-btn:active { border-color: #2563eb; color: #2563eb; }
+.wake-lock-btn.active {
+    border-color: #2563eb;
+    color: #2563eb;
+    background: #eff6ff;
+}
+.wake-lock-btn svg { width: 16px; height: 16px; }
+.ingredient-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.ingredient-list li {
+    padding: 0.6rem 0.25rem;
+    border-bottom: 1px solid #f0eeeb;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    min-height: 44px;
+    cursor: pointer;
+    transition: color 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.ingredient-list li .check {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 4px;
+    margin-top: 0.15rem;
+    transition: background 0.12s, border-color 0.12s;
+}
+.ingredient-list li.checked .check {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+.ingredient-list li.checked span {
+    text-decoration: line-through;
+    color: #9ca3af;
+}
+ol {
+    padding-left: 1.25rem;
+}
+ol li {
+    padding: 0.4rem 0;
+    padding-left: 0.25rem;
+}
+{% endblock %}
+
 {% block content %}
-<h1>{{ recipe['title'] }}</h1>
+<div class="recipe-header">
+    <h1>{{ recipe['title'] }}</h1>
+    <button class="wake-lock-btn" id="wakeLockBtn" aria-label="Keep screen on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <span id="wakeLockLabel">Screen on</span>
+    </button>
+</div>
 
 <h2>Ingredients</h2>
-<ul>
+<ul class="ingredient-list" id="ingredientList">
     {% for line in recipe['ingredients'].splitlines() %}
     {% if line.strip() %}
-    <li>{{ line.strip() }}</li>
+    <li>
+        <div class="check"></div>
+        <span>{{ line.strip() }}</span>
+    </li>
     {% endif %}
     {% endfor %}
 </ul>
@@ -22,4 +118,53 @@
     {% endif %}
     {% endfor %}
 </ol>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    // Ingredient checkboxes
+    document.getElementById('ingredientList').addEventListener('click', function(e) {
+        var li = e.target.closest('li');
+        if (li) li.classList.toggle('checked');
+    });
+
+    // Wake Lock
+    var btn = document.getElementById('wakeLockBtn');
+    var label = document.getElementById('wakeLockLabel');
+    var wakeLock = null;
+
+    if ('wakeLock' in navigator) {
+        btn.style.display = 'inline-flex';
+
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', function() {
+                    wakeLock = null;
+                    btn.classList.remove('active');
+                    label.textContent = 'Screen on';
+                });
+                btn.classList.add('active');
+                label.textContent = 'Staying on';
+            } catch (e) {}
+        }
+
+        btn.addEventListener('click', function() {
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            } else {
+                requestWakeLock();
+            }
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && btn.classList.contains('active')) {
+                requestWakeLock();
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}
