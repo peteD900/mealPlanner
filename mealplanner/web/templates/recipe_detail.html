@@ -77,6 +77,16 @@ ol li {
     padding: 0.4rem 0;
     padding-left: 0.25rem;
 }
+.core-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: #4f7c6e;
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+.core-label svg { width: 14px; height: 14px; }
 {% endblock %}
 
 {% block content %}
@@ -97,6 +107,13 @@ ol li {
         <span id="wakeLockLabel">Screen on</span>
     </button>
 </div>
+
+{% if recipe.is_core %}
+<div class="core-label">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    Core recipe
+</div>
+{% endif %}
 
 <h2>Ingredients</h2>
 <ul class="ingredient-list" id="ingredientList">

@@ -56,6 +56,19 @@
     margin-top: 0.15rem;
 }
 .recipe-item a:visited .recipe-title { color: #374151; }
+.core-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4f7c6e;
+    background: #edf3f1;
+    border: 1px solid #c3dbd5;
+    border-radius: 999px;
+    padding: 0 0.45rem;
+    line-height: 1.6;
+    vertical-align: middle;
+    margin-left: 0.4rem;
+}
 .no-results {
     color: #9ca3af;
     text-align: center;
@@ -72,7 +85,7 @@
     {% for recipe in recipes %}
     <li class="recipe-item">
         <a href="/recipe/{{ recipe['id'] }}">
-            <div class="recipe-title">{{ recipe['title'] }}</div>
+            <div class="recipe-title">{{ recipe['title'] }}{% if recipe['is_core'] %}<span class="core-badge">core</span>{% endif %}</div>
             {% if recipe['created_at'] %}
             <div class="recipe-date">Added {{ recipe['created_at'][:10] }}</div>
             {% endif %}

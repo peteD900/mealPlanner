@@ -57,6 +57,14 @@ Each meal must be a saved recipe — use the ID returned by save_recipe or look 
 Call save_meal_plan with meals as a list of objects with id and title, and week_of as the Monday ISO date. \
 Saving overwrites the existing plan for that week.
 
+## Core recipes
+
+Core recipes are staple meals the user cooks regularly — they aim to keep around 10–12. \
+Use list_core_recipes to see them. Use mark_recipe_core to mark or unmark any recipe as core. \
+When helping the user plan meals for a week, call list_core_recipes first and suggest including \
+some core recipes alongside any new ideas. Mention this naturally — never expose tool names \
+or internal flags to the user.
+
 ## URLs
 
 When the user sends a URL, page content will be included in their message. \

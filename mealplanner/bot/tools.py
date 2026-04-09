@@ -11,6 +11,7 @@ from mealplanner.db.database import (
     db_edit_recipe,
     db_get_recipe,
     db_get_meal_plan,
+    db_list_core_recipes,
     db_list_recipes,
     db_save_meal_plan,
     db_search_recipes,
@@ -188,6 +189,34 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "mark_recipe_core",
+        "description": (
+            "Mark or unmark a recipe as a core recipe (a staple meal the user cooks regularly). "
+            "Pass is_core=true to mark it as core, is_core=false to unmark it. "
+            "Use list_recipes to look up the recipe ID if you don't already have it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "Recipe ID to update"},
+                "is_core": {"type": "boolean", "description": "true to mark as core, false to unmark"},
+            },
+            "required": ["id", "is_core"],
+        },
+    },
+    {
+        "name": "list_core_recipes",
+        "description": (
+            "Return all recipes marked as core (staple meals the user cooks regularly). "
+            "Use when the user asks to see their core recipes, or when helping plan meals for a week."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
 ]
 
 
@@ -220,7 +249,7 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             recipes = await db_list_recipes(db)
             if not recipes:
                 return ToolResult(success=True, message="No recipes saved yet.").model_dump_json()
-            lines = "\n".join(f"{r['id']}: {r['title']}" for r in recipes)
+            lines = "\n".join(f"{r['id']}: {r['title']}{' [CORE]' if r['is_core'] else ''}" for r in recipes)
             return ToolResult(success=True, message=lines).model_dump_json()
 
         elif name == "get_recipe":
@@ -230,7 +259,7 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             return ToolResult(
                 success=True,
                 message=recipe.title,
-                data={"title": recipe.title, "ingredients": recipe.ingredients, "instructions": recipe.instructions},
+                data={"title": recipe.title, "ingredients": recipe.ingredients, "instructions": recipe.instructions, "is_core": recipe.is_core},
             ).model_dump_json()
 
         elif name == "search_recipes":
@@ -261,6 +290,20 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
                 msg = f"No meal plan found for week of {week_of}." if week_of else "No meal plan saved yet."
                 return ToolResult(success=True, message=msg).model_dump_json()
             return ToolResult(success=True, message=f"Meal plan for week of {plan.week_of}", data={"meals": [m.model_dump() for m in plan.meals], "week_of": str(plan.week_of)}).model_dump_json()
+
+        elif name == "mark_recipe_core":
+            found = await db_edit_recipe(db, id=inputs["id"], is_core=inputs["is_core"])
+            if not found:
+                return ToolResult(success=False, message=f"No recipe found with id={inputs['id']}").model_dump_json()
+            status = "marked as core" if inputs["is_core"] else "unmarked as core"
+            return ToolResult(success=True, message=f"Recipe #{inputs['id']} {status}").model_dump_json()
+
+        elif name == "list_core_recipes":
+            recipes = await db_list_core_recipes(db)
+            if not recipes:
+                return ToolResult(success=True, message="No core recipes saved yet.").model_dump_json()
+            lines = "\n".join(f"{r['id']}: {r['title']}" for r in recipes)
+            return ToolResult(success=True, message=lines).model_dump_json()
 
         else:
             return ToolResult(success=False, message=f"Unknown tool: {name}").model_dump_json()

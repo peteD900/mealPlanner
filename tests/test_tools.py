@@ -200,6 +200,51 @@ async def test_return_shopping_list(db):
 
 
 # ---------------------------------------------------------------------------
+# mark_recipe_core / list_core_recipes
+# ---------------------------------------------------------------------------
+
+async def test_mark_recipe_core(db):
+    rid = await save_recipe(db, title="Shakshuka")
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    assert result["data"]["is_core"] is True
+
+
+async def test_unmark_recipe_core(db):
+    rid = await save_recipe(db, title="Shakshuka")
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": False}, db))
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    assert result["data"]["is_core"] is False
+
+
+async def test_mark_recipe_core_not_found(db):
+    fail(await execute_tool("mark_recipe_core", {"id": 999, "is_core": True}, db))
+
+
+async def test_list_core_recipes_empty(db):
+    await save_recipe(db, title="Regular Pasta")
+    result = ok(await execute_tool("list_core_recipes", {}, db))
+    assert "No core recipes" in result["message"]
+
+
+async def test_list_core_recipes(db):
+    r1 = await save_recipe(db, title="Shakshuka")
+    await save_recipe(db, title="Pasta")
+    ok(await execute_tool("mark_recipe_core", {"id": r1, "is_core": True}, db))
+    result = ok(await execute_tool("list_core_recipes", {}, db))
+    assert "Shakshuka" in result["message"]
+    assert "Pasta" not in result["message"]
+
+
+async def test_list_recipes_shows_core_marker(db):
+    rid = await save_recipe(db, title="Shakshuka")
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
+    result = ok(await execute_tool("list_recipes", {}, db))
+    assert "[CORE]" in result["message"]
+
+
+# ---------------------------------------------------------------------------
 # Scenario: full recipe → meal plan → shopping list flow
 # ---------------------------------------------------------------------------
 
