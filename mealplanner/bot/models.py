@@ -9,6 +9,7 @@ class Recipe(BaseModel):
     ingredients: str  # newline-separated
     instructions: str  # newline-separated steps
     created_at: datetime | None = None
+    is_core: bool = False
 
 
 class MealEntry(BaseModel):

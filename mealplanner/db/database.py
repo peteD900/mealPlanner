@@ -31,7 +31,8 @@ async def init_db() -> None:
                 title TEXT NOT NULL,
                 ingredients TEXT NOT NULL,
                 instructions TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_core INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS session_messages (
@@ -57,20 +58,27 @@ async def init_db() -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_week_of ON meal_plans (week_of);
         """)
         await db.commit()
+        try:
+            await db.execute(
+                "ALTER TABLE recipes ADD COLUMN is_core INTEGER NOT NULL DEFAULT 0"
+            )
+            await db.commit()
+        except aiosqlite.OperationalError:
+            pass  # column already exists
 
 
 # --- Recipes ---
 
-async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, instructions: str) -> Recipe:
+async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, instructions: str, is_core: bool = False) -> Recipe:
     cursor = await db.execute(
-        "INSERT INTO recipes (title, ingredients, instructions) VALUES (?, ?, ?)",
-        (title, ingredients, instructions),
+        "INSERT INTO recipes (title, ingredients, instructions, is_core) VALUES (?, ?, ?, ?)",
+        (title, ingredients, instructions, int(is_core)),
     )
     await db.commit()
-    return Recipe(id=cursor.lastrowid, title=title, ingredients=ingredients, instructions=instructions)
+    return Recipe(id=cursor.lastrowid, title=title, ingredients=ingredients, instructions=instructions, is_core=is_core)
 
 
-async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None) -> bool:
+async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None, is_core: bool | None = None) -> bool:
     """Returns False if no recipe with that ID exists."""
     fields, values = [], []
     if title is not None:
@@ -82,6 +90,9 @@ async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, i
     if instructions is not None:
         fields.append("instructions = ?")
         values.append(instructions)
+    if is_core is not None:
+        fields.append("is_core = ?")
+        values.append(int(is_core))
     if not fields:
         return True
     values.append(id)
@@ -98,7 +109,7 @@ async def db_delete_recipe(db: aiosqlite.Connection, id: int) -> bool:
 
 
 async def db_list_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
-    async with db.execute("SELECT id, title, created_at FROM recipes ORDER BY created_at DESC") as cursor:
+    async with db.execute("SELECT id, title, created_at, is_core FROM recipes ORDER BY created_at DESC") as cursor:
         return await cursor.fetchall()
 
 
@@ -113,12 +124,19 @@ async def db_search_recipes(db: aiosqlite.Connection, query: str) -> list[aiosql
 
 async def db_get_recipe(db: aiosqlite.Connection, id: int) -> Recipe | None:
     async with db.execute(
-        "SELECT id, title, ingredients, instructions, created_at FROM recipes WHERE id = ?", (id,)
+        "SELECT id, title, ingredients, instructions, created_at, is_core FROM recipes WHERE id = ?", (id,)
     ) as cursor:
         row = await cursor.fetchone()
     if row is None:
         return None
-    return Recipe(id=row[0], title=row[1], ingredients=row[2], instructions=row[3], created_at=row[4])
+    return Recipe(id=row[0], title=row[1], ingredients=row[2], instructions=row[3], created_at=row[4], is_core=bool(row[5]))
+
+
+async def db_list_core_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:
+    async with db.execute(
+        "SELECT id, title, created_at, is_core FROM recipes WHERE is_core = 1 ORDER BY created_at DESC"
+    ) as cursor:
+        return await cursor.fetchall()
 
 
 # --- Meal plans ---
