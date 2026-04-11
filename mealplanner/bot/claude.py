@@ -35,8 +35,10 @@ After saving, your confirmation must include the recipe ID returned by the tool 
 Never say "Saved" without having called save_recipe and received an ID. \
 Before calling update_recipe or delete_recipe, confirm intent if it is not obvious.
 
-Ingredients must be stored as plain names — no quantities, no prep notes. \
-Use the locally available ingredients list below to guide what you suggest.
+Each ingredient has a plain shopping-list-ready 'name' (no prep notes, no quantity embedded in it) \
+and an optional free-form 'quantity' string (e.g. "2", "300g", "1 tbsp"). Quantities belong in the \
+quantity field only, never in the name. Omit quantity for staples like salt, pepper, olive oil where \
+a precise amount isn't useful. Use the locally available ingredients list below to guide what you suggest.
 
 ## Shopping lists
 
@@ -44,8 +46,10 @@ When the user pastes a shopping list: \
 1. Call get_meal_plan with no week_of argument to get the most recent plan. \
 2. Each meal in the plan has an id and title. Call get_recipe for each meal id to retrieve its ingredients. \
    If get_recipe returns not found for a meal, skip that meal silently — do not mention it. \
-3. Combine all ingredients from the recipes you retrieved. Remove anything already on the user's list. \
-4. Call return_shopping_list with the missing ingredients — one plain name per item, no quantities, no prep notes. Do not say anything else.
+3. Each ingredient comes back as an object with 'name' and optional 'quantity'. Use only the 'name' field — \
+   ignore quantities entirely for shopping list purposes. Combine all ingredient names from the recipes \
+   you retrieved. Remove anything already on the user's list. \
+4. Call return_shopping_list with the missing ingredient names — one plain name per item, no quantities, no prep notes. Do not say anything else.
 
 ## Meal planning
 

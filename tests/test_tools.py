@@ -22,10 +22,13 @@ def fail(result: str) -> dict:
     return data
 
 
-async def save_recipe(db, title="Test Pasta", ingredients="pasta\ngarlic", instructions="cook it"):
+DEFAULT_INGREDIENTS = [{"name": "pasta", "quantity": "200g"}, {"name": "garlic"}]
+
+
+async def save_recipe(db, title="Test Pasta", ingredients=None, instructions="cook it"):
     result = ok(await execute_tool("save_recipe", {
         "title": title,
-        "ingredients": ingredients,
+        "ingredients": ingredients if ingredients is not None else DEFAULT_INGREDIENTS,
         "instructions": instructions,
     }, db))
     return result["data"]["id"]
@@ -38,12 +41,27 @@ async def save_recipe(db, title="Test Pasta", ingredients="pasta\ngarlic", instr
 async def test_save_recipe_returns_id(db):
     result = ok(await execute_tool("save_recipe", {
         "title": "Halloumi Wraps",
-        "ingredients": "halloumi\npita\ntomatoes",
+        "ingredients": [
+            {"name": "halloumi", "quantity": "250g"},
+            {"name": "pita", "quantity": "2"},
+            {"name": "tomatoes"},
+        ],
         "instructions": "grill halloumi\nassemble wrap",
     }, db))
     assert result["data"]["id"] == 1
     assert result["data"]["title"] == "Halloumi Wraps"
     assert "Saved as recipe #1" in result["message"]
+
+
+async def test_save_recipe_preserves_quantity(db):
+    rid = await save_recipe(db, ingredients=[
+        {"name": "oats", "quantity": "300g"},
+        {"name": "olive oil"},
+    ])
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    ings = result["data"]["ingredients"]
+    assert ings[0] == {"name": "oats", "quantity": "300g"}
+    assert ings[1] == {"name": "olive oil", "quantity": None}
 
 
 async def test_save_recipe_missing_field(db):
@@ -58,7 +76,8 @@ async def test_get_recipe(db):
     rid = await save_recipe(db, title="Sweet Potato Salad")
     result = ok(await execute_tool("get_recipe", {"id": rid}, db))
     assert result["data"]["title"] == "Sweet Potato Salad"
-    assert "pasta" in result["data"]["ingredients"] or "garlic" in result["data"]["ingredients"]
+    names = [i["name"] for i in result["data"]["ingredients"]]
+    assert "pasta" in names or "garlic" in names
 
 
 async def test_get_recipe_not_found(db):
@@ -124,8 +143,12 @@ async def test_search_recipes_by_title(db):
 
 
 async def test_search_recipes_by_ingredient(db):
-    await save_recipe(db, title="Pasta", ingredients="pasta\ngarlic\nolive oil")
-    await save_recipe(db, title="Salad", ingredients="lettuce\ntomato\nolive oil")
+    await save_recipe(db, title="Pasta", ingredients=[
+        {"name": "pasta"}, {"name": "garlic"}, {"name": "olive oil"},
+    ])
+    await save_recipe(db, title="Salad", ingredients=[
+        {"name": "lettuce"}, {"name": "tomato"}, {"name": "olive oil"},
+    ])
     result = ok(await execute_tool("search_recipes", {"query": "garlic"}, db))
     assert "Pasta" in result["message"]
     assert "Salad" not in result["message"]
@@ -250,8 +273,18 @@ async def test_list_recipes_shows_core_marker(db):
 
 async def test_full_flow(db):
     """Save two recipes, plan a week, verify meal plan contains correct IDs."""
-    r1 = await save_recipe(db, title="Halloumi Wraps", ingredients="halloumi\npita\ntomatoes\nlettuce")
-    r2 = await save_recipe(db, title="Chipotle Chicken", ingredients="chicken\nchipotle\nlime\ngarlic")
+    r1 = await save_recipe(db, title="Halloumi Wraps", ingredients=[
+        {"name": "halloumi", "quantity": "250g"},
+        {"name": "pita", "quantity": "4"},
+        {"name": "tomatoes", "quantity": "2"},
+        {"name": "lettuce"},
+    ])
+    r2 = await save_recipe(db, title="Chipotle Chicken", ingredients=[
+        {"name": "chicken", "quantity": "500g"},
+        {"name": "chipotle", "quantity": "1 tbsp"},
+        {"name": "lime", "quantity": "1"},
+        {"name": "garlic", "quantity": "2 cloves"},
+    ])
 
     ok(await execute_tool("save_meal_plan", {
         "meals": [
@@ -267,10 +300,11 @@ async def test_full_flow(db):
     assert r2 in ids
 
     # Fetch ingredients for each meal (as Claude would do for shopping list)
-    all_ingredients = []
+    # Names only — quantities are intentionally ignored for shopping lists.
+    all_names = []
     for meal in plan["data"]["meals"]:
         recipe = ok(await execute_tool("get_recipe", {"id": meal["id"]}, db))
-        all_ingredients.extend(recipe["data"]["ingredients"].splitlines())
+        all_names.extend(i["name"] for i in recipe["data"]["ingredients"])
 
-    assert "halloumi" in all_ingredients
-    assert "chicken" in all_ingredients
+    assert "halloumi" in all_names
+    assert "chicken" in all_names
