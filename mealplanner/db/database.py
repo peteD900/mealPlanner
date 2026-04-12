@@ -6,7 +6,15 @@ from typing import AsyncIterator
 
 import aiosqlite
 
-from mealplanner.bot.models import MealEntry, MealPlan, Recipe
+from mealplanner.bot.models import Ingredient, MealEntry, MealPlan, Recipe
+
+
+def _serialize_ingredients(ingredients: list[Ingredient]) -> str:
+    return json.dumps([i.model_dump() for i in ingredients])
+
+
+def _deserialize_ingredients(raw: str) -> list[Ingredient]:
+    return [Ingredient(**i) for i in json.loads(raw)]
 
 DB_PATH = os.getenv("DB_PATH", "data/mealplanner.db")
 
@@ -69,16 +77,17 @@ async def init_db() -> None:
 
 # --- Recipes ---
 
-async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: str, instructions: str, is_core: bool = False) -> Recipe:
+async def db_add_recipe(db: aiosqlite.Connection, title: str, ingredients: list[Ingredient], instructions: str, is_core: bool = False) -> Recipe:
+    serialized = _serialize_ingredients(ingredients)
     cursor = await db.execute(
         "INSERT INTO recipes (title, ingredients, instructions, is_core) VALUES (?, ?, ?, ?)",
-        (title, ingredients, instructions, int(is_core)),
+        (title, serialized, instructions, int(is_core)),
     )
     await db.commit()
     return Recipe(id=cursor.lastrowid, title=title, ingredients=ingredients, instructions=instructions, is_core=is_core)
 
 
-async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: str = None, instructions: str = None, is_core: bool | None = None) -> bool:
+async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, ingredients: list[Ingredient] | None = None, instructions: str = None, is_core: bool | None = None) -> bool:
     """Returns False if no recipe with that ID exists."""
     fields, values = [], []
     if title is not None:
@@ -86,7 +95,7 @@ async def db_edit_recipe(db: aiosqlite.Connection, id: int, title: str = None, i
         values.append(title)
     if ingredients is not None:
         fields.append("ingredients = ?")
-        values.append(ingredients)
+        values.append(_serialize_ingredients(ingredients))
     if instructions is not None:
         fields.append("instructions = ?")
         values.append(instructions)
@@ -129,7 +138,14 @@ async def db_get_recipe(db: aiosqlite.Connection, id: int) -> Recipe | None:
         row = await cursor.fetchone()
     if row is None:
         return None
-    return Recipe(id=row[0], title=row[1], ingredients=row[2], instructions=row[3], created_at=row[4], is_core=bool(row[5]))
+    return Recipe(
+        id=row[0],
+        title=row[1],
+        ingredients=_deserialize_ingredients(row[2]),
+        instructions=row[3],
+        created_at=row[4],
+        is_core=bool(row[5]),
+    )
 
 
 async def db_list_core_recipes(db: aiosqlite.Connection) -> list[aiosqlite.Row]:

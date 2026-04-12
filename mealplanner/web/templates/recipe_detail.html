@@ -66,9 +66,17 @@
     background: #4f7c6e;
     border-color: #4f7c6e;
 }
-.ingredient-list li.checked span {
+.ingredient-list li.checked .ingredient-text {
     text-decoration: line-through;
     color: #9ca3af;
+}
+.ingredient-list li .quantity {
+    color: #9ca3af;
+    font-variant-numeric: tabular-nums;
+    margin-right: 0.35rem;
+}
+.ingredient-list li.checked .quantity {
+    text-decoration: line-through;
 }
 ol {
     padding-left: 1.25rem;
@@ -117,13 +125,11 @@ ol li {
 
 <h2>Ingredients</h2>
 <ul class="ingredient-list" id="ingredientList">
-    {% for line in recipe['ingredients'].splitlines() %}
-    {% if line.strip() %}
+    {% for ing in recipe.ingredients %}
     <li>
         <div class="check"></div>
-        <span>{{ line.strip() }}</span>
+        <span class="ingredient-text">{% if ing.quantity %}<span class="quantity">{{ ing.quantity }}</span>{% endif %}{{ ing.name }}</span>
     </li>
-    {% endif %}
     {% endfor %}
 </ul>
 

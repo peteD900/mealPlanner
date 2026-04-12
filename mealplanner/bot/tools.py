@@ -2,7 +2,7 @@ import aiosqlite
 from datetime import date, timedelta
 from pydantic import ValidationError
 
-from mealplanner.bot.models import MealEntry, MealPlan, Recipe, ShoppingList, ToolResult
+from mealplanner.bot.models import Ingredient, MealEntry, MealPlan, Recipe, ShoppingList, ToolResult
 
 SHOPPING_LIST_SENTINEL = "__shopping_list__:"
 from mealplanner.db.database import (
@@ -22,7 +22,8 @@ TOOLS = [
         "name": "save_recipe",
         "description": (
             "Save a finalised recipe to the database. Call this when the user confirms they want to keep a recipe. "
-            "Ingredients should be a newline-separated list of plain ingredient names (no quantities, no prep notes). "
+            "Ingredients is a list of objects with a plain shopping-list-ready 'name' (no quantity, no prep notes) "
+            "and an optional free-form 'quantity' string (e.g. '2', '300g', '1 tbsp'). "
             "Instructions should be newline-separated steps."
         ),
         "input_schema": {
@@ -30,8 +31,25 @@ TOOLS = [
             "properties": {
                 "title": {"type": "string"},
                 "ingredients": {
-                    "type": "string",
-                    "description": "Newline-separated ingredient names, e.g. 'olive oil\\nwhite onions\\ngarlic'",
+                    "type": "array",
+                    "description": (
+                        "List of ingredients. Each item has a plain 'name' (shopping-list ready, no quantity, "
+                        "no prep notes) and optional 'quantity' string."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Plain ingredient name, e.g. 'white onions', 'oats', 'olive oil'",
+                            },
+                            "quantity": {
+                                "type": "string",
+                                "description": "Optional quantity with unit, e.g. '2', '300g', '1 tbsp'",
+                            },
+                        },
+                        "required": ["name"],
+                    },
                 },
                 "instructions": {
                     "type": "string",
@@ -46,7 +64,9 @@ TOOLS = [
         "description": (
             "Update an existing saved recipe by ID. Only provide the fields you want to change. "
             "Call this when the user asks to edit or modify a specific recipe. "
-            "Ingredients must be a newline-separated list of plain ingredient names (no quantities, no prep notes). "
+            "Ingredients (if provided) must be a list of objects with a plain shopping-list-ready 'name' "
+            "(no quantity, no prep notes) and optional free-form 'quantity' string. Replaces the full "
+            "ingredient list — include every ingredient, not just the ones being changed. "
             "Instructions must be newline-separated steps with NO leading numbers — the UI numbers them automatically."
         ),
         "input_schema": {
@@ -55,8 +75,19 @@ TOOLS = [
                 "id": {"type": "integer", "description": "Recipe ID from list_recipes or save_recipe"},
                 "title": {"type": "string"},
                 "ingredients": {
-                    "type": "string",
-                    "description": "Newline-separated ingredient names, e.g. 'olive oil\\nwhite onions\\ngarlic'",
+                    "type": "array",
+                    "description": (
+                        "Full replacement ingredient list. Each item has a plain 'name' (shopping-list ready) "
+                        "and optional 'quantity' string."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "quantity": {"type": "string"},
+                        },
+                        "required": ["name"],
+                    },
                 },
                 "instructions": {
                     "type": "string",
@@ -223,16 +254,19 @@ TOOLS = [
 async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str:
     try:
         if name == "save_recipe":
-            recipe = Recipe(title=inputs["title"], ingredients=inputs["ingredients"], instructions=inputs["instructions"])
+            ingredients = [Ingredient(**i) for i in inputs["ingredients"]]
+            recipe = Recipe(title=inputs["title"], ingredients=ingredients, instructions=inputs["instructions"])
             saved = await db_add_recipe(db, recipe.title, recipe.ingredients, recipe.instructions)
             return ToolResult(success=True, message=f"Saved as recipe #{saved.id}", data={"id": saved.id, "title": saved.title}).model_dump_json()
 
         elif name == "update_recipe":
+            raw_ingredients = inputs.get("ingredients")
+            ingredients = [Ingredient(**i) for i in raw_ingredients] if raw_ingredients is not None else None
             found = await db_edit_recipe(
                 db,
                 id=inputs["id"],
                 title=inputs.get("title"),
-                ingredients=inputs.get("ingredients"),
+                ingredients=ingredients,
                 instructions=inputs.get("instructions"),
             )
             if not found:
@@ -259,7 +293,12 @@ async def execute_tool(name: str, inputs: dict, db: aiosqlite.Connection) -> str
             return ToolResult(
                 success=True,
                 message=recipe.title,
-                data={"title": recipe.title, "ingredients": recipe.ingredients, "instructions": recipe.instructions, "is_core": recipe.is_core},
+                data={
+                    "title": recipe.title,
+                    "ingredients": [i.model_dump() for i in recipe.ingredients],
+                    "instructions": recipe.instructions,
+                    "is_core": recipe.is_core,
+                },
             ).model_dump_json()
 
         elif name == "search_recipes":

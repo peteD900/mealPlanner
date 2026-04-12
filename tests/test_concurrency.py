@@ -98,7 +98,7 @@ async def test_concurrent_writes_both_succeed():
             async with open_db() as db:
                 return await execute_tool("save_recipe", {
                     "title": title,
-                    "ingredients": "a\nb",
+                    "ingredients": [{"name": "a"}, {"name": "b"}],
                     "instructions": "do it",
                 }, db)
 
@@ -144,7 +144,7 @@ async def test_concurrent_read_during_write():
         async with open_db() as db:
             await execute_tool("save_recipe", {
                 "title": "Existing Recipe",
-                "ingredients": "a",
+                "ingredients": [{"name": "a"}],
                 "instructions": "b",
             }, db)
 
@@ -152,7 +152,7 @@ async def test_concurrent_read_during_write():
             async with open_db() as db:
                 return await execute_tool("save_recipe", {
                     "title": "New Recipe",
-                    "ingredients": "x",
+                    "ingredients": [{"name": "x"}],
                     "instructions": "y",
                 }, db)
 
@@ -187,7 +187,7 @@ async def test_execute_tool_db_error_returns_failure(db):
 
     result = await execute_tool("save_recipe", {
         "title": "Ghost Recipe",
-        "ingredients": "nothing",
+        "ingredients": [{"name": "nothing"}],
         "instructions": "nowhere",
     }, db)
     data = json.loads(result)

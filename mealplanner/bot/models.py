@@ -3,10 +3,15 @@ from datetime import date, datetime
 from pydantic import BaseModel
 
 
+class Ingredient(BaseModel):
+    name: str  # plain shopping-list-ready name, e.g. "white onions"
+    quantity: str | None = None  # optional free-form quantity, e.g. "2", "300g", "1 tbsp"
+
+
 class Recipe(BaseModel):
     id: int | None = None
     title: str
-    ingredients: str  # newline-separated
+    ingredients: list[Ingredient]
     instructions: str  # newline-separated steps
     created_at: datetime | None = None
     is_core: bool = False
