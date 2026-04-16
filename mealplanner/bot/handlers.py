@@ -1,4 +1,6 @@
+import os
 import re
+from pathlib import Path
 
 import httpx
 from bs4 import BeautifulSoup
@@ -15,17 +17,22 @@ from mealplanner.bot.claude import run_claude
 from mealplanner.db.database import open_db, db_list_recipes
 
 URL_RE = re.compile(r"https?://\S+")
+SITE_RE = re.compile(r"^(.+?)\s+\(([^)]+)\)\s*$")
 MAX_PAGE_CHARS = 8000
+
+SITES_PATH = Path(os.getenv("SITES_PATH", "data/sites.txt"))
 
 BOT_COMMANDS = [
     BotCommand("start", "Get started"),
     BotCommand("recipes", "List all saved recipes"),
+    BotCommand("sites", "List recipe inspiration sites"),
     BotCommand("help", "Show available commands"),
 ]
 
 HELP_TEXT = (
     "Just message me — I'll handle the rest.\n\n"
-    "/recipes — list saved recipes\n\n"
+    "/recipes — list saved recipes\n"
+    "/sites — list recipe inspiration sites\n\n"
     "You can describe a dish, paste a URL, ask for meal ideas, request a shopping list, or plan your week."
 )
 
@@ -65,6 +72,32 @@ async def cmd_recipes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_text("\n".join(lines))
 
 
+async def cmd_sites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        raw_lines = SITES_PATH.read_text().splitlines()
+    except FileNotFoundError:
+        await update.message.reply_text("No sites configured yet.")
+        return
+
+    links = []
+    for line in raw_lines:
+        line = line.lstrip("-•* \t")
+        if not line:
+            continue
+        m = SITE_RE.match(line)
+        if m:
+            name, domain = m.group(1), m.group(2)
+            links.append(f'<a href="https://{domain}">{name}</a>')
+        else:
+            links.append(line)
+
+    if not links:
+        await update.message.reply_text("No sites configured yet.")
+        return
+
+    await update.message.reply_text("\n".join(links), parse_mode="HTML")
+
+
 # --- Free-text message handler ---
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -92,4 +125,5 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("start", cmd_help))
     app.add_handler(CommandHandler("recipes", cmd_recipes))
+    app.add_handler(CommandHandler("sites", cmd_sites))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
