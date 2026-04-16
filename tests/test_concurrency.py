@@ -99,7 +99,7 @@ async def test_concurrent_writes_both_succeed():
                 return await execute_tool("save_recipe", {
                     "title": title,
                     "ingredients": [{"name": "a"}, {"name": "b"}],
-                    "instructions": "do it",
+                    "instructions": ["do it"],
                 }, db)
 
         results = await asyncio.gather(
@@ -145,7 +145,7 @@ async def test_concurrent_read_during_write():
             await execute_tool("save_recipe", {
                 "title": "Existing Recipe",
                 "ingredients": [{"name": "a"}],
-                "instructions": "b",
+                "instructions": ["b"],
             }, db)
 
         async def do_write():
@@ -153,7 +153,7 @@ async def test_concurrent_read_during_write():
                 return await execute_tool("save_recipe", {
                     "title": "New Recipe",
                     "ingredients": [{"name": "x"}],
-                    "instructions": "y",
+                    "instructions": ["y"],
                 }, db)
 
         async def do_read():
@@ -188,7 +188,7 @@ async def test_execute_tool_db_error_returns_failure(db):
     result = await execute_tool("save_recipe", {
         "title": "Ghost Recipe",
         "ingredients": [{"name": "nothing"}],
-        "instructions": "nowhere",
+        "instructions": ["nowhere"],
     }, db)
     data = json.loads(result)
     assert data["success"] is False
