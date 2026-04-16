@@ -25,11 +25,11 @@ def fail(result: str) -> dict:
 DEFAULT_INGREDIENTS = [{"name": "pasta", "quantity": "200g"}, {"name": "garlic"}]
 
 
-async def save_recipe(db, title="Test Pasta", ingredients=None, instructions="cook it"):
+async def save_recipe(db, title="Test Pasta", ingredients=None, instructions=None):
     result = ok(await execute_tool("save_recipe", {
         "title": title,
         "ingredients": ingredients if ingredients is not None else DEFAULT_INGREDIENTS,
-        "instructions": instructions,
+        "instructions": instructions if instructions is not None else ["cook it"],
     }, db))
     return result["data"]["id"]
 
@@ -46,7 +46,7 @@ async def test_save_recipe_returns_id(db):
             {"name": "pita", "quantity": "2"},
             {"name": "tomatoes"},
         ],
-        "instructions": "grill halloumi\nassemble wrap",
+        "instructions": ["grill halloumi", "assemble wrap"],
     }, db))
     assert result["data"]["id"] == 1
     assert result["data"]["title"] == "Halloumi Wraps"
@@ -107,13 +107,76 @@ async def test_list_recipes(db):
 
 async def test_update_recipe(db):
     rid = await save_recipe(db, title="Original Title")
-    ok(await execute_tool("update_recipe", {"id": rid, "title": "Updated Title"}, db))
+    result = ok(await execute_tool("update_recipe", {
+        "id": rid,
+        "expected_title": "Original Title",
+        "title": "Updated Title",
+    }, db))
+    assert "Updated Title" in result["message"]
     result = ok(await execute_tool("get_recipe", {"id": rid}, db))
     assert result["data"]["title"] == "Updated Title"
 
 
 async def test_update_recipe_not_found(db):
-    fail(await execute_tool("update_recipe", {"id": 999, "title": "Ghost"}, db))
+    fail(await execute_tool("update_recipe", {
+        "id": 999,
+        "expected_title": "Ghost",
+        "title": "Ghost",
+    }, db))
+
+
+async def test_update_recipe_wrong_title_rejected(db):
+    r1 = await save_recipe(db, title="Halloumi Wraps")
+    await save_recipe(db, title="Pasta")
+    result = fail(await execute_tool("update_recipe", {
+        "id": r1,
+        "expected_title": "Pasta",
+        "title": "Should Not Apply",
+    }, db))
+    assert "Halloumi Wraps" in result["message"]
+    # Verify id=r1 was not modified
+    current = ok(await execute_tool("get_recipe", {"id": r1}, db))
+    assert current["data"]["title"] == "Halloumi Wraps"
+
+
+async def test_update_recipe_title_is_case_insensitive(db):
+    rid = await save_recipe(db, title="Halloumi Wraps")
+    ok(await execute_tool("update_recipe", {
+        "id": rid,
+        "expected_title": "halloumi wraps",
+        "title": "Halloumi Pita Wraps",
+    }, db))
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    assert result["data"]["title"] == "Halloumi Pita Wraps"
+
+
+async def test_update_recipe_instructions_roundtrip_as_steps(db):
+    rid = await save_recipe(db, title="Stepped", instructions=["initial"])
+    ok(await execute_tool("update_recipe", {
+        "id": rid,
+        "expected_title": "Stepped",
+        "instructions": ["step one", "step two", "step three"],
+    }, db))
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    stored = result["data"]["instructions"]
+    assert "\n" in stored
+    lines = [line for line in stored.splitlines() if line.strip()]
+    assert lines == ["step one", "step two", "step three"]
+
+
+async def test_save_recipe_rejects_empty_instruction_list(db):
+    fail(await execute_tool("save_recipe", {
+        "title": "No Steps",
+        "ingredients": DEFAULT_INGREDIENTS,
+        "instructions": [],
+    }, db))
+
+
+async def test_save_recipe_normalises_blank_steps(db):
+    rid = await save_recipe(db, title="Blanks", instructions=["step one", "  ", "step two"])
+    result = ok(await execute_tool("get_recipe", {"id": rid}, db))
+    lines = [line for line in result["data"]["instructions"].splitlines() if line.strip()]
+    assert lines == ["step one", "step two"]
 
 
 # ---------------------------------------------------------------------------
@@ -121,13 +184,26 @@ async def test_update_recipe_not_found(db):
 # ---------------------------------------------------------------------------
 
 async def test_delete_recipe(db):
-    rid = await save_recipe(db)
-    ok(await execute_tool("delete_recipe", {"id": rid}, db))
+    rid = await save_recipe(db, title="Test Pasta")
+    ok(await execute_tool("delete_recipe", {"id": rid, "expected_title": "Test Pasta"}, db))
     fail(await execute_tool("get_recipe", {"id": rid}, db))
 
 
 async def test_delete_recipe_not_found(db):
-    fail(await execute_tool("delete_recipe", {"id": 999}, db))
+    fail(await execute_tool("delete_recipe", {"id": 999, "expected_title": "Ghost"}, db))
+
+
+async def test_delete_recipe_wrong_title_rejected(db):
+    r1 = await save_recipe(db, title="Halloumi Wraps")
+    await save_recipe(db, title="Pasta")
+    result = fail(await execute_tool("delete_recipe", {
+        "id": r1,
+        "expected_title": "Pasta",
+    }, db))
+    assert "Halloumi Wraps" in result["message"]
+    # Verify id=r1 still exists
+    current = ok(await execute_tool("get_recipe", {"id": r1}, db))
+    assert current["data"]["title"] == "Halloumi Wraps"
 
 
 # ---------------------------------------------------------------------------
@@ -228,21 +304,21 @@ async def test_return_shopping_list(db):
 
 async def test_mark_recipe_core(db):
     rid = await save_recipe(db, title="Shakshuka")
-    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "expected_title": "Shakshuka", "is_core": True}, db))
     result = ok(await execute_tool("get_recipe", {"id": rid}, db))
     assert result["data"]["is_core"] is True
 
 
 async def test_unmark_recipe_core(db):
     rid = await save_recipe(db, title="Shakshuka")
-    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
-    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": False}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "expected_title": "Shakshuka", "is_core": True}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "expected_title": "Shakshuka", "is_core": False}, db))
     result = ok(await execute_tool("get_recipe", {"id": rid}, db))
     assert result["data"]["is_core"] is False
 
 
 async def test_mark_recipe_core_not_found(db):
-    fail(await execute_tool("mark_recipe_core", {"id": 999, "is_core": True}, db))
+    fail(await execute_tool("mark_recipe_core", {"id": 999, "expected_title": "Ghost", "is_core": True}, db))
 
 
 async def test_list_core_recipes_empty(db):
@@ -254,7 +330,7 @@ async def test_list_core_recipes_empty(db):
 async def test_list_core_recipes(db):
     r1 = await save_recipe(db, title="Shakshuka")
     await save_recipe(db, title="Pasta")
-    ok(await execute_tool("mark_recipe_core", {"id": r1, "is_core": True}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": r1, "expected_title": "Shakshuka", "is_core": True}, db))
     result = ok(await execute_tool("list_core_recipes", {}, db))
     assert "Shakshuka" in result["message"]
     assert "Pasta" not in result["message"]
@@ -262,7 +338,7 @@ async def test_list_core_recipes(db):
 
 async def test_list_recipes_shows_core_marker(db):
     rid = await save_recipe(db, title="Shakshuka")
-    ok(await execute_tool("mark_recipe_core", {"id": rid, "is_core": True}, db))
+    ok(await execute_tool("mark_recipe_core", {"id": rid, "expected_title": "Shakshuka", "is_core": True}, db))
     result = ok(await execute_tool("list_recipes", {}, db))
     assert "[CORE]" in result["message"]
 
